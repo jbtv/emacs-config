@@ -94,10 +94,13 @@
 ;;   :demand t ;; annoying, tried to get rid of :demand without success
 ;;   :hook '((cider-mode emacs-lisp-mode) . turn-on-eval-sexp-fu-flash-mode))
 
+(use-package sesman
+  :straight
+  (sesman :type git :host github :repo "vspinu/sesman" :branch "master"))
+
 (use-package cider
   :straight
-  ;; (cider :type git :host github :repo "clojure-emacs/cider" :branch "master")
-  (cider :type git :host github :repo "clojure-emacs/cider" :branch "v0.16.0")
+  (cider :type git :host github :repo "clojure-emacs/cider" :branch "v0.18.0")
 
   :custom
   (cider-known-endpoints
@@ -145,10 +148,14 @@
    "s-SPC"    'cider-nrepl-reset
    "C-n" 'lispy-outline-next
    "C-p" 'lispy-outline-prev
+
+   ;; muscle memory expects lispy-eval-and-comment, see cfg-lispy.el, but couldn't get that to work with bleeding-edge cider etc
+   "s-j" 'cider-pprint-eval-last-sexp
    
    ;; maybe something closer to s-\\ ? it evals it and then cider-inspects it
    ;; "s-i s-s" 'cider-inspect-last-sexp
    )
+
   (:keymaps 'cider-repl-mode-map
    "s-SPC" 'cider-repl-clear-buffer)
   (:states '(normal visual)
@@ -252,6 +259,8 @@
   :straight 
   (seq-25 :type git :host github :repo "NicolasPetton/seq.el"))
 (use-package clj-refactor
+  :straight
+  (clj-refactor :type git :host github :repo "clojure-emacs/clj-refactor.el" :branch "2.4.0")
   :config
   (cljr-add-keybindings-with-prefix "s-i")
   ;; :general
