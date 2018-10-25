@@ -17,8 +17,8 @@
 (scroll-bar-mode -1)
 
 ;; I use compton for x compositing and without this incantation emacs doesn't cooperate (it's on top of my xmonad-electric overlay)
-;;(set-frame-parameter (selected-frame) 'alpha '(100 . 85))
-(set-frame-parameter nil 'alpha nil)
+(set-frame-parameter (selected-frame) 'alpha '(100 . 85))
+;; (set-frame-parameter nil 'alpha nil)
 ;;(add-to-list 'default-frame-alist '(alpha . nil))
 
 ;; this is the analogue of
@@ -136,7 +136,13 @@ If you unset the urgency, you still have to visit the frame to make the urgency 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Completion framework
-(use-package company)
+(use-package company
+  :config
+  ;; CAREFUL, perhaps should do this per-mode
+  (setq company-minimum-prefix-length 3)
+  ;; I am super fast and I don't like waiting on machines
+  (setq company-idle-delay 0.5))
+
 ;; (global-company-mode)
 (use-package company-quickhelp)
 
@@ -302,3 +308,24 @@ If you unset the urgency, you still have to visit the frame to make the urgency 
 
 (use-package yaml-mode
   :defer t)
+
+;; good for learning new keybindings
+(use-package which-key
+  )
+
+(use-package ibuffer
+  :config
+  ;; nearly all of this is the default layout
+  (setq ibuffer-formats
+        '((mark modified read-only " "
+                (name 60 60 :left :elide) ; change: 30s were originally 18s
+                " "
+                (filename-and-process 50 50 :left :elide)
+                " "
+                (size 9 -1 :right)
+                " "
+                (mode 16 16 :left :elide)
+                )
+          (mark " "
+                (name 16 -1)
+                " " filename))) )

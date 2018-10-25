@@ -100,7 +100,8 @@
 
 (use-package cider
   :straight
-  (cider :type git :host github :repo "clojure-emacs/cider" :branch "v0.18.0")
+  (cider :type git :host github :repo "clojure-emacs/cider" :branch "v0.18.0"
+         :files (:defaults "cider-test.el"))
 
   :custom
   (cider-known-endpoints
@@ -132,13 +133,15 @@
    :keymaps 'clojure-mode-map
    "s-]"      'cider-find-var
    "s-["      'cider-pop-back
+   "s-t"      'cider-test-run-ns-tests
    "s-\\"     'cider-eval-last-sexp
    ;; "s-\\"     'cider-eval-defun-at-point
    "s-b"      'cider-eval-buffer
    "s-r"      'cider-eval-region
-   "s-;"      'cider-eval-ns-form
+   "s-!"      'cider-eval-ns-form
    "s-m"      'cider-macroexpand-1-inplace
    "s-S-m"    'cider-macroexpand-1
+   ;; "s-\\"     'lispy-eval
    "s-o"      'cider-pprint-eval-last-sexp
    "s-e"      'cider-enlighten-mode
    ;; "s-p s-\\" 'cider-pprint-eval-defun-at-point
@@ -153,7 +156,7 @@
    "s-j" 'cider-pprint-eval-last-sexp
    
    ;; maybe something closer to s-\\ ? it evals it and then cider-inspects it
-   ;; "s-i s-s" 'cider-inspect-last-sexp
+   "s-i s-i" 'cider-inspect-last-sexp
    )
 
   (:keymaps 'cider-repl-mode-map
@@ -183,6 +186,20 @@
    "s-k"        'cider-inspector-previous-inspectable-object)
 
   :init
+  ;; working around the insane difficulty of invoking cider-connect programatically after the latest release of cider
+  ;; which introduced all this fanciness about sessions linking to buffers
+  ;; all of which is quite useless to me... and they made it SUPER HARD to do it non-interactively
+  (defun cider-connect-damnit (cider-plist)
+    (with-temp-buffer
+      (unless (car (hash-table-values sesman-sessions-hashmap))
+        (cider-connect-clj cider-plist))))
+  (defun fucking-cider-and-its-fucking-sessions ()
+    (let ((theonlysession (car (hash-table-values sesman-sessions-hashmap))))
+      (if theonlysession
+          (sesman-link-with-buffer (current-buffer) theonlysession)
+        (message "THERE AINT ONE, FUCK"))))
+
+
   (defun my-cider-mode-hook ()
     (message "MYCIDER: enable yas & clj-ref")
     (yas-minor-mode 1)
@@ -192,6 +209,9 @@
     (message "MYCIDER: enable company-mode")
     (company-mode 1)
     (message "MYCIDER: require macroexpansion and browse-ns")
+    ;; see https://github.com/clojure-emacs/cider/issues/2464
+    (message "HACK TO EMULATE cider-default-connection")
+    (fucking-cider-and-its-fucking-sessions)
     (require 'cider-macroexpansion)
     (require 'cider-browse-ns)
 
@@ -201,12 +221,17 @@
 
     ;; (turn-on-eval-sexp-fu-flash-mode)
     (message "MYCIDER: add cljr submap")
-    (cljr-add-keybindings-with-prefix "s-,"))
-  (defun my-cider-connected-hook ()
+    (cljr-add-keybindings-with-prefix "s-,")
+
     ;; lispy seems to *assume* I am using cider-jack-in, which I am not... FIXME CONFIRM THIS
-    (message "MYCIDERCONNECT: load lispy middleware")
-    (lispy--clojure-middleware-load)
-    )
+    (add-hook 'cider-connected-hook #'lispy--clojure-middleware-load)
+    (progn
+      (add-hook 'nrepl-connected-hook
+                'lispy--clojure-eval-hook-lambda t)))
+  (defun my-cider-connected-hook ()
+    ;; FIXME what if the necessary dependencies are *not* in the nREPL server?
+    ;; I should make this degrade gracefully...
+    (lispy-cider-load-file "~/.emacs.d/straight/build/lispy/lispy-clojure.clj"))
   (defun my-cider-repl-mode-hook ()
     (eldoc-mode 1)
     (lispy-mode 1)
@@ -280,3 +305,4 @@
 ;; and, since I specify cider-nrepl in profiles.clj it doesn't get the version it wants and is missing
 ;; cider.nrepl....tools.java/parser from cider, which uses tools.jar (but I have tools.jar on the classpath)
 ;; ah, because that tools.java namespace *disappeared* from cider after 0.16.0
+
