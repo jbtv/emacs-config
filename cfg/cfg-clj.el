@@ -102,6 +102,10 @@
             :repo "clojure-emacs/parseedn"
             :branch "master"))
 
+(use-package sesman
+  :straight
+  (sesman :type git :host github :repo "vspinu/sesman" :branch "master"))
+
 (use-package cider
   :straight
   (cider :type git :host github :repo "clojure-emacs/cider" :branch "master"
@@ -321,6 +325,16 @@
   (clj-refactor :type git :host github :repo "clojure-emacs/clj-refactor.el" :branch "2.4.0")
   :custom
   (cljr-clojure-test-declaration "[clojure.test :as t :refer [deftest is]]")
+  :config
+  (cljr-add-keybindings-with-prefix "s-i")
+  ;; :general
+  ;; '(:states (normal visual)
+  ;;   :keymaps clojure-mode-map
+  ;;   "s-n" 'flycheck-next-error
+  ;;   "s-p" 'flycheck-previous-error
+  ;;   )
+  
+  
   )
 
 ;; breaks/unbreaks company-quickhelp-mode for cider, filed https://github.com/expez/company-quickhelp/issues/79
