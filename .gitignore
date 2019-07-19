@@ -10,3 +10,7 @@ straight/build
 straight/build-cache.el
 .pipe-into-emacs/
 /emojis
+/desktops
+/backups/
+/undo/
+/semanticdb/

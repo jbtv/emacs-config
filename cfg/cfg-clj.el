@@ -73,9 +73,9 @@
   :mode "\\.edn$"
   :mode "\\.clj$"
   :mode "\\.cljx$"
-  :general (:states '(normal insert visual)
+  :general (:states '(normal)
             :keymaps 'clojure-mode-map
-            "s-|"    'clojure-align
+            "|"    'clojure-align
             "<f8>" 'prettify-symbols-mode)
   :init
   (defun my-clojure-mode-hook ()
@@ -88,11 +88,19 @@
     (modify-syntax-entry ?> "w"))
   (add-hook 'clojure-mode-hook #'my-clojure-mode-hook))
 
-;; (use-package eval-sexp-fu)
-;; (use-package cider-eval-sexp-fu
-;;   :commands (turn-on-eval-sexp-fu-flash-mode)
-;;   :demand t ;; annoying, tried to get rid of :demand without success
-;;   :hook '((cider-mode emacs-lisp-mode) . turn-on-eval-sexp-fu-flash-mode))
+
+;; consider trying this again:
+
+(use-package sesman
+  :straight
+  (sesman :type git :host github :repo "vspinu/sesman" :branch "master"))
+
+(use-package parseedn
+  :straight
+  (parseedn :type git
+            :host github
+            :repo "clojure-emacs/parseedn"
+            :branch "master"))
 
 (use-package sesman
   :straight
@@ -100,12 +108,15 @@
 
 (use-package cider
   :straight
-  (cider :type git :host github :repo "clojure-emacs/cider" :branch "v0.18.0")
+  (cider :type git :host github :repo "clojure-emacs/cider" :branch "master"
+         :files (:defaults "cider-test.el"))
 
   :custom
   (cider-known-endpoints
    '(("ropes-blake" "7887")
      ("ropes-blake" "7888")))
+
+  (cider-jdk-src-paths '("/usr/lib/jvm/openjdk-11/lib/src.zip"))
 
   ;; this isn't supported it 0.16.0
   ;; (cider-jdk-src-paths '("/usr/lib/jvm/openjdk-8/src.zip"
@@ -126,34 +137,45 @@
   (nrepl-sync-request-timeout 300)
   (cider-repl-history-file "~/.emacs.d/nrepl-history")
   (cljr-warn-on-eval nil) ;; just *do not* write effectful namespaces! https://github.com/clojure-emacs/clj-refactor.el/#in-case-refactor-nrepl-used-for-advanced-refactorings
-  
+  ;; finally!
+  (cider-inject-dependencies-at-jack-in nil)
+
   :general
   (:states '(normal insert visual)
    :keymaps 'clojure-mode-map
+   "s--"      'clojure-cycle-privacy
    "s-]"      'cider-find-var
    "s-["      'cider-pop-back
-   "s-\\"     'cider-eval-last-sexp
-   ;; "s-\\"     'cider-eval-defun-at-point
+
+   "<s-return>"      'cider-test-run-ns-tests
+
+   "s-l"     'cider-eval-last-sexp
+   "s-\\"     'cider-eval-defun-at-point
+
    "s-b"      'cider-eval-buffer
    "s-r"      'cider-eval-region
-   "s-;"      'cider-eval-ns-form
+   "s-!"      'cider-eval-ns-form
    "s-m"      'cider-macroexpand-1-inplace
    "s-S-m"    'cider-macroexpand-1
+   ;; "s-\\"     'lispy-eval
    "s-o"      'cider-pprint-eval-last-sexp
    "s-e"      'cider-enlighten-mode
    ;; "s-p s-\\" 'cider-pprint-eval-defun-at-point
    ;; "s-p s-s"  'cider-eval-print-last-sexp
    "s-d"      'cider-debug-defun-at-point
    "s-i s-r"  'cider-inspect-last-result
-   "s-SPC"    'cider-nrepl-reset
+   "s-t"    'cider-nrepl-reset
    "C-n" 'lispy-outline-next
    "C-p" 'lispy-outline-prev
 
    ;; muscle memory expects lispy-eval-and-comment, see cfg-lispy.el, but couldn't get that to work with bleeding-edge cider etc
-   "s-j" 'cider-pprint-eval-last-sexp
-   
+   "s-j" 'lispy-eval-and-comment
+
+   ;; ace-line -> cider-eval-defun (without moving the cursor)
+   "s-SPC" 'ace-fucking-cider-eval
+
    ;; maybe something closer to s-\\ ? it evals it and then cider-inspects it
-   ;; "s-i s-s" 'cider-inspect-last-sexp
+   "s-i s-i" 'cider-inspect-last-sexp
    )
 
   (:keymaps 'cider-repl-mode-map
@@ -183,8 +205,29 @@
    "s-k"        'cider-inspector-previous-inspectable-object)
 
   :init
+  ;; working around the insane difficulty of invoking cider-connect programatically after the latest release of cider
+  ;; which introduced all this fanciness about sessions linking to buffers
+  ;; all of which is quite useless to me... and they made it SUPER HARD to do it non-interactively
+
+  (add-hook 'cider-repl-mode-hook #'cider-company-enable-fuzzy-completion)
+  (add-hook 'cider-mode-hook #'cider-company-enable-fuzzy-completion)
+  (defun cider-connect-damnit (cider-plist)
+    (with-temp-buffer
+      (unless (car (hash-table-values sesman-sessions-hashmap))
+        (cider-connect-clj cider-plist))))
+  (defun fucking-cider-and-its-fucking-sessions ()
+    (let ((theonlysession (car (hash-table-values sesman-sessions-hashmap))))
+      (if theonlysession
+          (sesman-link-with-buffer (current-buffer) theonlysession)
+        (message "THERE AINT ONE, FUCK"))))
+
+  (defun ace-fucking-cider-eval ()
+    (interactive)
+    (save-excursion
+      (avy-goto-line)
+      (cider-eval-defun-at-point)))
   (defun my-cider-mode-hook ()
-    (message "MYCIDER: enable yas & clj-ref")
+    (message "MYCIDER: enable yas")
     (yas-minor-mode 1)
     (clj-refactor-mode 1)
     (message "MYCIDER: enable eldoc")
@@ -192,20 +235,34 @@
     (message "MYCIDER: enable company-mode")
     (company-mode 1)
     (message "MYCIDER: require macroexpansion and browse-ns")
-    (require 'cider-macroexpansion)
-    (require 'cider-browse-ns)
+    ;; see https://github.com/clojure-emacs/cider/issues/2464
+    ;; (message "HACK TO EMULATE cider-default-connection")
+    ;; (fucking-cider-and-its-fucking-sessions)
+    ;; (require 'cider-macroexpansion)
+    ;; (require 'cider-browse-ns)
 
     ;; not working yet, with no x toolkit anyway... I don't know if it requires that
     ;; had it working at home
     ;; (company-quickhelp-mode)
 
     ;; (turn-on-eval-sexp-fu-flash-mode)
+
     (message "MYCIDER: add cljr submap")
-    (cljr-add-keybindings-with-prefix "s-,"))
-  (defun my-cider-connected-hook ()
+    (cljr-add-keybindings-with-prefix "s-,")
+
     ;; lispy seems to *assume* I am using cider-jack-in, which I am not... FIXME CONFIRM THIS
-    (message "MYCIDERCONNECT: load lispy middleware")
-    (lispy--clojure-middleware-load)
+
+    ;; (require 'lispy)
+    ;; (add-hook 'cider-connected-hook #'lispy--clojure-middleware-load)
+
+    (add-hook 'nrepl-connected-hook
+              'lispy--clojure-eval-hook-lambda t)
+    )
+  (defun my-cider-connected-hook ()
+    ;; FIXME what if the necessary dependencies are *not* in the nREPL server?
+    ;; I should make this degrade gracefully...
+    ;; (lispy-cider-load-file "~/.emacs.d/straight/build/lispy/lispy-clojure.clj")
+    (message "NOT DOING IT")
     )
   (defun my-cider-repl-mode-hook ()
     (eldoc-mode 1)
@@ -217,7 +274,7 @@
   (add-hook 'cider-mode-hook #'my-cider-mode-hook)
   (add-hook 'cider-connected-hook #'my-cider-connected-hook)
   (add-hook 'cider-repl-mode-hook #'my-cider-repl-mode-hook)
-  
+
   :config
   ;; https://www.reddit.com/r/emacs/comments/7au3hj/how_do_you_manage_your_emacs_windows_and_stay_sane/
   (add-to-list 'display-buffer-alist
@@ -243,6 +300,13 @@
       ;; (insert "(in-ns 'dev) (reset)")
       (cider-repl-return) )))
 
+(use-package eval-sexp-fu)
+(use-package cider-eval-sexp-fu
+  :after cider
+  :commands (turn-on-eval-sexp-fu-flash-mode)
+  :demand t ;; annoying, tried to get rid of :demand without success
+  :hook '((cider-mode emacs-lisp-mode) . turn-on-eval-sexp-fu-flash-mode))
+
 ;; not sure if I like it yet... it seems pretty cool but maybe a bit heavy/bloated
 ;; play with it more for sure
 ;; (use-package sayid
@@ -250,17 +314,17 @@
 ;;   :config
 ;;   (sayid-setup-package))
 
-;;     ;; conflicts! arrg
-;;     ;; (require 'clj-refactor)
-;;     ;; (cljr-add-keybindings-with-prefix "s-p")
-
 (use-package clojure-snippets)
 (use-package seq-25
-  :straight 
+  :straight
   (seq-25 :type git :host github :repo "NicolasPetton/seq.el"))
+
+;; ditching it?
 (use-package clj-refactor
   :straight
   (clj-refactor :type git :host github :repo "clojure-emacs/clj-refactor.el" :branch "2.4.0")
+  :custom
+  (cljr-clojure-test-declaration "[clojure.test :as t :refer [deftest is]]")
   :config
   (cljr-add-keybindings-with-prefix "s-i")
   ;; :general
@@ -275,8 +339,62 @@
 
 ;; breaks/unbreaks company-quickhelp-mode for cider, filed https://github.com/expez/company-quickhelp/issues/79
 
-;; with cider-nrepl > 0.16.0 I've been having problems, lispy-clojure.clj doesn't load and other funny stuff
-;; lispy does some funky shit to load its own deps
-;; and, since I specify cider-nrepl in profiles.clj it doesn't get the version it wants and is missing
-;; cider.nrepl....tools.java/parser from cider, which uses tools.jar (but I have tools.jar on the classpath)
-;; ah, because that tools.java namespace *disappeared* from cider after 0.16.0
+
+;; replacement for clj-refactor?
+;; one that does not fuck with the classpath loader?
+;; I suspect it is responsible for fishy bugs with loading namespaces failing...
+
+;; (use-package lsp-mode
+;;   :commands lsp
+;;   :config
+;;   (add-to-list 'lsp-language-id-configuration '(clojure-mode . "clojure-mode"))
+;;   :init
+;;   (setq lsp-enable-indentation nil)
+;;   (add-hook 'clojure-mode-hook #'lsp)
+;;   (add-hook 'clojurec-mode-hook #'lsp)
+;;   (add-hook 'clojurescript-mode-hook #'lsp))
+
+;; (use-package lsp-ui
+;;   :commands lsp-ui-mode)
+
+;; (use-package company-lsp
+;;   :commands company-lsp)
+
+(defun cider-inspector-watch-iteration ()
+  (interactive)
+  (let ((window-before (selected-window)))
+    (cider-inspector-pop)
+    ;; (cider-inspector-refresh)
+    (select-window window-before)))
+
+(defun cider-inspector-watch ()
+  (setq cider-inspector-watch-timer (run-with-timer 0 1 'cider-inspector-watch-iteration)))
+
+(defun cider-inspector-unwatch ()
+  (cancel-timer cider-inspector-watch-timer))
+
+(quote
+ (progn
+   (cider-inspector-watch-iteration)
+   (cider-inspector-watch)
+   (cider-inspector-unwatch)
+   (cancel-timer 'cider-inspector-watch-iteration)
+   ))
+
+(quote
+ (progn
+   (cider-pprint-eval-last-sexp)
+   (cider--pprint-eval-form "(do (Thread/sleep 2000) (+ 1 2))")
+   (cider-last-sexp 'bounds)
+   (cider-eval-sexp-at-point)
+   (with-temp-buffer
+     (clojure-mode)
+     (cider-mode)
+     (insert "(+ 1 2)")
+     (goto-char (point-max))
+     (cider-eval-last-sexp)
+     ;; (sit-for 1)
+     )
+
+
+   ))

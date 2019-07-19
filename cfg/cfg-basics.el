@@ -17,8 +17,8 @@
 (scroll-bar-mode -1)
 
 ;; I use compton for x compositing and without this incantation emacs doesn't cooperate (it's on top of my xmonad-electric overlay)
-;;(set-frame-parameter (selected-frame) 'alpha '(100 . 85))
-(set-frame-parameter nil 'alpha nil)
+(set-frame-parameter (selected-frame) 'alpha '(100 . 85))
+;; (set-frame-parameter nil 'alpha nil)
 ;;(add-to-list 'default-frame-alist '(alpha . nil))
 
 ;; this is the analogue of
@@ -85,6 +85,12 @@
 ;; first, I find it maddening to have an independent $PATH for emacs, so fix that:
 (use-package exec-path-from-shell :config (exec-path-from-shell-initialize))
 
+;; direnv seems like a Good Idea
+(use-package direnv
+  :config
+  (exec-path-from-shell-initialize)
+  (direnv-mode))
+
 (defun x-urgency-hint (frame arg &optional source)
   "Set the x-urgency hint for the frame to arg:
 
@@ -134,9 +140,93 @@ If you unset the urgency, you still have to visit the frame to make the urgency 
  "s-r" 'eval-region
  "s-b" 'eval-buffer)
 
+;; learn more from the master!
+;; https://github.com/bbatsov/emacs.d/blob/master/init.el
+;; reduce the frequency of garbage collection by making it happen on
+;; each 50MB of allocated data (the default is on every 0.76MB)
+(setq gc-cons-threshold 50000000)
+
+;;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+;; the following complains about finder-inf.elc being empty... wtf
+;;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+;;(use-package whitespace
+;;  :init
+;;  (dolist (hook '(prog-mode-hook text-mode-hook))
+;;    (add-hook hook #'whitespace-mode))
+;;  (add-hook 'before-save-hook #'whitespace-cleanup)
+;;  :config
+;;  (setq whitespace-line-column 113) ;; limit line length
+;;  (setq whitespace-style '(face tabs empty trailing lines-tail)))
+;;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+(use-package super-save
+  :config
+  ;; add integration with ace-window
+  (add-to-list 'super-save-triggers 'ace-window)
+  (super-save-mode +1))
+
+;; think about trying bbatsov's emacs utility fns https://github.com/bbatsov/crux
+;; punting on learning it now because it's a lot
+
+(setq scroll-margin 0
+      scroll-conservatively 100000
+      scroll-preserve-screen-position 1)
+
+(use-package diff-hl
+  :config
+  (global-diff-hl-mode +1)
+  (add-hook 'dired-mode-hook 'diff-hl-dired-mode)
+  (add-hook 'magit-post-refresh-hook 'diff-hl-magit-post-refresh)
+  :general
+  (:keymaps 'prog-mode-map
+   :states '(normal)
+   "H-k" 'diff-hl-previous-hunk
+   "H-j" 'diff-hl-next-hunk))
+
+;; this next one I have not tried yet
+;; temporarily highlight changes from yanking, etc
+;; (use-package volatile-highlights
+;;   :ensure t
+;;   :config
+;;   (volatile-highlights-mode +1))
+
+
+
+;; more useful frame title, that show either a file or a
+;; buffer name (if the buffer isn't visiting a file)
+(setq frame-title-format
+      '((:eval (if (buffer-file-name)
+                   (abbreviate-file-name (buffer-file-name))
+                 "%b"))))
+
+(line-number-mode t)
+(column-number-mode 1)
+(size-indication-mode t)
+
+(global-auto-revert-mode t)
+(setq global-auto-revert-non-file-buffers t)
+
+(use-package diff-hl
+  :config
+  (global-diff-hl-mode +1)
+  (add-hook 'dired-mode-hook 'diff-hl-dired-mode)
+  (add-hook 'magit-post-refresh-hook 'diff-hl-magit-post-refresh))
+
+
+;;; end of what I learned from bbatsov's emacs.d
+
+(general-define-key
+ "<H-tab>" 'hippie-expand)
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Completion framework
-(use-package company)
+(use-package company
+  :config
+  ;; CAREFUL, perhaps should do this per-mode
+  (setq company-minimum-prefix-length 3)
+  ;; I am super fast and I don't like waiting on machines
+  (setq company-idle-delay 0.5))
+
 ;; (global-company-mode)
 (use-package company-quickhelp)
 
@@ -185,11 +275,18 @@ If you unset the urgency, you still have to visit the frame to make the urgency 
     (make-directory "~/.emacs.d/undo"))
   (global-undo-tree-mode))
 
+;; Zap to everything
+(use-package avy
+  :config
+  (setq avy-background nil))
+
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Make emacs usable by someone with VIM muscle memory
 
 ;; this is required for evil-collection which is better than evil-integration
 (setq evil-want-integration nil)
+(setq evil-want-keybinding nil)
 (use-package evil
   :demand 't
   :general
@@ -202,19 +299,22 @@ If you unset the urgency, you still have to visit the frame to make the urgency 
    "b,"     'previous-buffer
    "bl"     'ibuffer
    "br"     'revert-buffer
-   "b SPC"  'ido-switch-buffer
-   ",b"     'ido-switch-buffer
+   ",b"     'switch-to-buffer
    "bk"     'kill-buffer-and-window
    "bd"     'kill-buffer
    ;; frames and windows
    ",w"     'make-frame
    "wd"     'delete-window
    "wb"     'delete-other-windows
+   "fd"     'delete-frame
    ;; general utilities
    "ds"     'desktop-save-in-desktop-dir
    ",s"     'shell
    ",x"     'smex
    ",,x"    'smex-major-mode-commands
+   ;; more ace jumping
+   "ak" 'avy-goto-line-above
+   "aj" 'avy-goto-line-below
    )
   (:keymaps 'visual
    "|"     'align-regexp)
@@ -236,12 +336,15 @@ If you unset the urgency, you still have to visit the frame to make the urgency 
     (ido-vertical-mode)))
 
 ;; multiple cursors that are compatible with evil
-(use-package evil-mc)
+;; ouch, broken
+;; (use-package evil-mc)
 
 (use-package evil-collection
   :after evil
   :custom (evil-collection-setup-minibuffer t)
-  :config (evil-collection-init))
+  :config
+  (evil-collection-init)
+  (evil-collection-ibuffer-setup))
 
 (use-package evil-surround :config (global-evil-surround-mode 1) :defer 3)
 
@@ -302,3 +405,32 @@ If you unset the urgency, you still have to visit the frame to make the urgency 
 
 (use-package yaml-mode
   :defer t)
+
+;; good for learning new keybindings
+(use-package which-key
+  )
+
+
+
+;;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+;; the following complains about finder-inf.elc being empty... wtf
+;;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+;; (use-package ibuffer
+;;   :config
+;;   (require 'ibuf-ext)
+;;   (add-to-list 'ibuffer-never-show-predicates "^\\*")
+;;   ;; nearly all of this is the default layout
+;;   (setq ibuffer-formats
+;;         '((mark modified read-only " "
+;;                 (name 60 60 :left :elide) ; change: 60s were originally 18s
+;;                 " "
+;;                 (filename-and-process 50 50 :left :elide)
+;;                 " "
+;;                 (size 9 -1 :right)
+;;                 " "
+;;                 (mode 16 16 :left :elide)
+;;                 )
+;;           (mark " "
+;;                 (name 16 -1)
+;;                 " " filename))) )
+;;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!

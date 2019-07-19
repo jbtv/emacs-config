@@ -1,0 +1,31 @@
+#!/usr/bin/env sh
+
+# a daemon which keeps a "warm" emacs clone
+# that is, a criu-restored snapshot of emacs with no frames visible
+# there is always a warm one standing by
+# see bin/clone-one
+
+cd /home/blake/.emacs.d/ludicrousspeed/.images/mine
+
+SOCKET_PATH=/run/user/1000/emacs
+SOCKET_NAME=$SOCKET_PATH/server
+
+while :
+do
+  while [ -e $SOCKET_NAME ]
+  do
+      echo -n "."
+      sleep 0.1
+  done
+  
+  echo -n "Clone an emacs..."
+  /home/blake/src/criu/scripts/criu-ns restore -d -vvv -o restore.log 2>&1 > /dev/null &
+
+  while [ ! -e $SOCKET_NAME ]
+  do
+      echo -n "."
+      sleep 0.1
+  done
+  echo "done"
+    
+done > /var/log/emacs-cloner.log
